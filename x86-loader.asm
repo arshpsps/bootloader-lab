@@ -1,29 +1,50 @@
-[org 0x7C00]
+[org 0x7C00] ;; org = origin
 
-;; completely clean all registers, apparantly to avoid undefined behavior
 xor ax, ax
 mov ds, ax
 mov es, ax
 mov ss, ax
 mov sp, 0x7C00
 
-mov si, message ; mov message address into source index register
+mov si, message
+call print
 
-.print:
-lodsb ; just google or chatgpt ds:si, its weird af, it does increment SI, so basically next character address
-or al, al ; check if al is zero (string empty / null terminated)
-jz .done ; if it is empty, jump to .done
-mov ah, 0x0E ; switch bios mode to "teletype"
-int 0x10 ; bios interrupt (basically bios ka syscall) for print
-jmp .print ; loop for next letter / character
+readmem:
+xor ax, ax
+mov es, ax
+mov bx, 0x0500
 
-.done:
-cli ; clean interrupts
-hlt ; halt cpu, infinite
+mov ah, 0x02
+mov al, 1
+mov ch, 0
+mov cl, 2
+mov dh, 0
+mov dl, 0x80
+int 0x13
 
-message db "hi poo", 0 ; null terminated string, ascii
+jc disk_error
 
-;; so real mode / bios spec expects the last 2 bytes (510, 511) of bootloader to be a "boot signature",
-;; "boot signature" just a magic number that bios reads and goes "oh this is bootable"
-times 510-($-$$) db 0 ; this is padding magic to go to the 2nd last byte, cuz out program is prolly smaller
-dw 0xAA55 ; boot signature, puts 0x55 in byte 510 and 0xAA in byte 511
+jmp 0x0000:0x0500
+
+
+disk_error:
+mov si, error_msg
+call print
+hlt
+
+print:
+lodsb
+or al, al
+jz print_done
+mov ah, 0x0E
+int 0x10
+jmp print
+
+print_done:
+ret
+
+message db "hi from loader", 0
+error_msg db "error loading from disk", 0
+
+times 510-($-$$) db 0
+dw 0xAA55
